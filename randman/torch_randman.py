@@ -42,7 +42,9 @@ class TorchRandman:
         self.use_bias = use_bias
         self.dim_embedding = embedding_dim
         self.dim_manifold = manifold_dim
-        self.f_cutoff = int(np.min((np.ceil(np.power(prec, -1 / self.alpha)), max_f_cutoff)))
+        self.f_cutoff = int(
+            np.min((np.ceil(np.power(prec, -1 / self.alpha)), max_f_cutoff))
+        )
         self.params_per_1d_fun = 3
         self.dtype = dtype
 
@@ -89,7 +91,11 @@ class TorchRandman:
         tmp = torch.zeros(len(x), dtype=self.dtype, device=self.device)
         s = self.spect
         for i in range(self.f_cutoff):
-            tmp += theta[0, i] * s[i] * torch.sin(2 * np.pi * (i * x * theta[1, i] + theta[2, i]))
+            tmp += (
+                theta[0, i]
+                * s[i]
+                * torch.sin(2 * np.pi * (i * x * theta[1, i] + theta[2, i]))
+            )
         return tmp
 
     def eval_random_function(self, x, params):
@@ -101,13 +107,17 @@ class TorchRandman:
     def eval_manifold(self, x):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=self.dtype, device=self.device)
-        tmp = torch.zeros((x.shape[0], self.dim_embedding), dtype=self.dtype, device=self.device)
+        tmp = torch.zeros(
+            (x.shape[0], self.dim_embedding), dtype=self.dtype, device=self.device
+        )
         for i in range(self.dim_embedding):
             tmp[:, i] = self.eval_random_function(x, self.params[i])
         return tmp
 
     def get_random_manifold_samples(self, nb_samples):
-        x = torch.rand(nb_samples, self.dim_manifold, dtype=self.dtype, device=self.device)
+        x = torch.rand(
+            nb_samples, self.dim_manifold, dtype=self.dtype, device=self.device
+        )
         y = self.eval_manifold(x)
         return x, y
 
@@ -125,7 +135,7 @@ def make_spiking_dataset(
     step_frac=1.0,
     dim_manifold=2,
     nb_spikes=1,
-    nb_samples=1000,
+    nb_samples_per_class=1000,
     alpha=2.0,
     shuffle=True,
     classification=True,
@@ -163,7 +173,7 @@ def make_spiking_dataset(
     randman_seeds = np.random.randint(max_value, size=(nb_classes, nb_spikes))
 
     for k in range(nb_classes):
-        x = np.random.rand(nb_samples, dim_manifold)
+        x = np.random.rand(nb_samples_per_class, dim_manifold)
         submans = [
             TorchRandman(nb_units, dim_manifold, alpha=alpha, seed=randman_seeds[k, i])
             for i in range(nb_spikes)
@@ -173,7 +183,11 @@ def make_spiking_dataset(
         for i, rm in enumerate(submans):
             y = rm.eval_manifold(x)
             y = standardize(y)
-            units.append(np.repeat(np.arange(nb_units).reshape(1, -1), nb_samples, axis=0))
+            units.append(
+                np.repeat(
+                    np.arange(nb_units).reshape(1, -1), nb_samples_per_class, axis=0
+                )
+            )
             times.append(y.numpy())
 
         units = np.concatenate(units, axis=1)
@@ -204,16 +218,16 @@ def make_spiking_dataset(
 
 
 class RandmanDataset(torch.utils.data.Dataset):
-
     def __init__(self, **randman_config) -> None:
-
         self.config = randman_config
         self.data, self.targets = make_spiking_dataset(**randman_config)
 
     def __getitem__(self, index):
         data, target = self.data[index], self.targets[index]
         spike_times = data[..., 0].astype(int)
-        spikes = torch.nn.functional.one_hot(torch.tensor(spike_times), self.config["nb_steps"]).T
+        spikes = torch.nn.functional.one_hot(
+            torch.tensor(spike_times), self.config["nb_steps"]
+        ).T
         return spikes, target
 
     def __len__(self):
